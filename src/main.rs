@@ -5,6 +5,7 @@ use bevy::{prelude::*, window::WindowResolution, math::{vec2}};
 #[cfg(debug_assertions)]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
+use bevy_prototype_debug_lines::DebugLinesPlugin;
 use bevy_rapier2d::{
     prelude::{
         RapierPhysicsPlugin,
@@ -17,11 +18,12 @@ use bevy_rapier2d::{
     },
     render::RapierDebugRenderPlugin
 };
-use components::{Wall, PlayerControlled, EquippedSkill, Character, Health, HealthBar, RandomWalkAi};
-use plugins::{timers::TimersPlugin, collision::CollisionPlugin, events::EventsPlugin, skills::SkillsPlugin, character::CharacterPlugin, ai::AiPlugin};
+use components::{Obstacle, PlayerControlled, EquippedSkill, Character, Health, HealthBar, Group};
+use plugins::{timers::TimersPlugin, collision::CollisionPlugin, events::EventsPlugin, skills::SkillsPlugin, character::{CharacterPlugin, PLAYER_VELOCITY}, ai::{AiPlugin, steer::{SteerAi, SteerConfiguration, other::{RandomAroundArea}, avoid::{AvoidObstacles, AvoidGroup}, chase::{ChaseTargets, ChaseThenStrageAround}}}};
 
 pub mod components;
 pub mod plugins;
+pub mod context_map;
 
 const SCREEN_WIDTH: f32 = 640.0;
 const SCREEN_HEIGHT: f32 = 480.0;
@@ -33,6 +35,10 @@ const ATTACK_Z_INDEX: f32 = 1.5;
 const FIREBALL_SPEED: f32 = 500.0;
 const PUNCH_SPEED: f32 = 500.0;
 const SLASH_SPEED: f32 = FRAC_PI_2;
+
+pub fn lerp(start: f32, end: f32, ratio: f32) -> f32 {
+    start * (1.0 - ratio) + end * ratio
+}
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
 pub enum GameState {
@@ -70,6 +76,7 @@ fn main() {
     #[cfg(debug_assertions)]
     {
         app.add_plugin(WorldInspectorPlugin::new());
+        app.add_plugin(DebugLinesPlugin::default());
         app.add_plugin(RapierDebugRenderPlugin::default());
     }
 
@@ -102,7 +109,14 @@ fn setup_world(
     mut commands: Commands,
     game_resources: Res<GameResources>,
 ) {
-    commands.spawn((
+
+    for (x, y) in [
+        (-150., -100.),
+        (150., -100.),
+        (-150., 100.),
+        (150., 100.),
+    ] {
+        commands.spawn((
             RigidBody::Fixed,
             Collider::cuboid(SPRITE_DRAW_SIZE / 2.0, SPRITE_DRAW_SIZE / 2.0),
             SpriteBundle {
@@ -112,15 +126,19 @@ fn setup_world(
                     ..default()
                 },
                 texture: game_resources.image_handle.clone(),
-                transform: Transform::from_xyz(0., -100.0, CHARACTER_Z_INDEX),
+                transform: Transform::from_xyz(x, y, CHARACTER_Z_INDEX),
                 ..default()
             },
             ActiveCollisionTypes::all(),
-            Wall,
+            Obstacle,
         ));
+    }
 
-    commands.spawn((
-        Character,
+
+    let player_entity = commands.spawn((
+        Character {
+            speed: PLAYER_VELOCITY
+        },
         PlayerControlled,
         SpriteBundle {
             sprite: Sprite {
@@ -138,15 +156,20 @@ fn setup_world(
         KinematicCharacterController::default(),
         LockedAxes::ROTATION_LOCKED,
         ActiveEvents::COLLISION_EVENTS
-    ));
+    )).id();
 
     commands.spawn((
-        Character,
-        Health {
-            act: 3.0,
-            max: 3.0
+        Character {
+            speed: PLAYER_VELOCITY * 0.95
         },
-        RandomWalkAi::new(),
+        Health {
+            act: 1.0,
+            max: 1.0
+        },
+        Group(1),
+        SteerAi::default(),
+        // AvoidObstacles(SteerConfiguration::new(SPRITE_DRAW_SIZE, 200.0)),
+        ChaseThenStrageAround(SteerConfiguration::new(200.0, 600.0), player_entity),
         SpriteBundle {
             sprite: Sprite {
                 custom_size: Some(vec2(SPRITE_DRAW_SIZE, SPRITE_DRAW_SIZE)),
@@ -179,4 +202,49 @@ fn setup_world(
             HealthBar
         ));
     });
+
+    // commands.spawn((
+    //     Character {
+    //         speed: PLAYER_VELOCITY * 0.5
+    //     },
+    //     Health {
+    //         act: 3.0,
+    //         max: 3.0
+    //     },
+    //     SteerAi::new(1.0),
+    //     AvoidObstacles(SteerConfiguration::new(SPRITE_DRAW_SIZE, 150.0)),
+    //     AvoidGroup(SteerConfiguration::new(SPRITE_DRAW_SIZE, 150.0), 1),
+    //     RandomAroundArea(vec2(-0., 0.), 100.),
+    //     SpriteBundle {
+    //         sprite: Sprite {
+    //             custom_size: Some(vec2(SPRITE_DRAW_SIZE, SPRITE_DRAW_SIZE)),
+    //             rect: Some(Rect::new(9.0 * SPRITE_SIZE, 0., 10.0 * SPRITE_SIZE, SPRITE_SIZE)),
+    //             ..default()
+    //         },
+    //         texture: game_resources.image_handle.clone(),
+    //         transform: Transform::from_xyz(-200., 0., CHARACTER_Z_INDEX),
+    //         ..default()
+    //     },
+    //     EquippedSkill::Punch(SPRITE_DRAW_SIZE * 0.3),
+    //     RigidBody::KinematicVelocityBased,
+    //     Collider::cuboid(SPRITE_DRAW_SIZE * 0.4, SPRITE_DRAW_SIZE * 0.4),
+    //     KinematicCharacterController::default(),
+    //     LockedAxes::ROTATION_LOCKED,
+    //     ActiveEvents::COLLISION_EVENTS
+    // ))
+    // .with_children(|builder| {
+    //     builder.spawn((
+    //         SpriteBundle {
+    //             sprite: Sprite {
+    //                 anchor: bevy::sprite::Anchor::BottomLeft,
+    //                 color: Color::rgb(0.95, 0.25, 0.25),
+    //                 custom_size: Some(Vec2::new(SPRITE_DRAW_SIZE, 8.0)),
+    //                 ..default()
+    //             },
+    //             transform: Transform::from_translation(Vec3::new(-SPRITE_DRAW_SIZE * 0.5, SPRITE_DRAW_SIZE * 0.6, 1.0)),
+    //             ..default()
+    //         },
+    //         HealthBar
+    //     ));
+    // });
 }

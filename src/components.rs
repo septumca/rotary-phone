@@ -1,18 +1,16 @@
+use std::f32::consts::FRAC_PI_8;
+
 use bevy::{prelude::*};
 
-use crate::{plugins::timers::WithTimer};
+use crate::{plugins::{timers::WithTimer, character::WIGGLE_SPEED}};
+
+
+#[derive(Component)]
+pub struct Group(pub usize);
 
 #[derive(Component)]
 pub struct HealthBar;
 
-#[derive(Component)]
-pub struct RandomWalkAi(pub Timer);
-
-impl RandomWalkAi {
-    pub fn new() -> Self {
-        Self(Timer::from_seconds(0.0, TimerMode::Once))
-    }
-}
 
 #[derive(Component, Clone)]
 pub enum EquippedSkill {
@@ -25,13 +23,31 @@ pub enum EquippedSkill {
 pub struct PlayerControlled;
 
 #[derive(Component)]
-pub struct Character;
+pub struct Character {
+    pub speed: f32
+}
 
 #[derive(Component)]
 pub struct TargetPosition(pub Vec2);
 
 #[derive(Component)]
-pub struct WiggleEffect(pub f32);
+pub struct WiggleEffect {
+    pub magnitude: f32,
+    pub speed: f32,
+    pub act: f32
+}
+
+impl WiggleEffect {
+    pub fn new(speed: f32, magnitude: f32) -> Self {
+        Self { magnitude, speed, act: 0.0 }
+    }
+}
+
+impl Default for WiggleEffect {
+    fn default() -> Self {
+        Self::new(WIGGLE_SPEED, FRAC_PI_8 / 4.0)
+    }
+}
 
 #[derive(Component)]
 pub struct RotateAroundPoint {
@@ -63,7 +79,7 @@ pub struct Projectile;
 pub struct Slash;
 
 #[derive(Component)]
-pub struct Wall;
+pub struct Obstacle;
 
 #[derive(Component)]
 pub struct AttackCD(pub Timer);

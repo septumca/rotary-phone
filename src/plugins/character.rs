@@ -1,13 +1,13 @@
-use std::f32::consts::{FRAC_PI_8};
+use std::f32::consts::{PI};
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::{KinematicCharacterController};
 
-use crate::{GameState, components::{TargetPosition, WiggleEffect, RotateAroundPoint, Character, Health, PlayerControlled, EquippedSkill, AttackCD, HealthBar}, SPRITE_DRAW_SIZE};
+use crate::{GameState, components::{TargetPosition, WiggleEffect, RotateAroundPoint, Health, PlayerControlled, EquippedSkill, AttackCD, HealthBar, Character}, SPRITE_DRAW_SIZE};
 
 use super::events::SkillEvent;
 
-const WIGGLE_SPEED: f32 = 100.0;
-pub const PLAYER_VELOCITY: f32 = 5.0;
+pub const WIGGLE_SPEED: f32 = 50.0;
+pub const PLAYER_VELOCITY: f32 = 3.0;
 
 
 pub struct PlayerInputPlugin;
@@ -30,7 +30,6 @@ impl Plugin for MovementPlugin {
         app
         .add_systems((
             move_to_target_position,
-            movement_detection.after(move_to_target_position).after(input),
             update_wiggle_effect,
             update_rotate_around,
             stop_wiggle_effect,
@@ -78,27 +77,27 @@ fn update_health_bar(
 
 fn move_to_target_position(
     mut commands: Commands,
-    mut movable_q: Query<(Entity, &TargetPosition, &Transform, &mut KinematicCharacterController)>,
+    mut movable_q: Query<(Entity, &Character, &TargetPosition, &Transform, &mut KinematicCharacterController)>,
 ) {
-    for (entity, target_position, transform, mut controller) in movable_q.iter_mut() {
+    for (entity, character, target_position, transform, mut controller) in movable_q.iter_mut() {
         let delta_v = target_position.0 - transform.translation.truncate();
         if delta_v.length_squared() < 10.0 {
             commands.entity(entity).remove::<TargetPosition>();
+            commands.entity(entity).remove::<WiggleEffect>();
             continue;
         }
-        let velocity = delta_v.normalize() * PLAYER_VELOCITY;
+        let velocity = delta_v.normalize() * character.speed;
         controller.translation = Some(velocity);
     }
 }
 
 fn update_wiggle_effect(
+    timer: Res<Time>,
     mut q: Query<(&mut WiggleEffect, &mut Transform)>,
 ) {
     for (mut wiggle_effect, mut transform) in q.iter_mut() {
-        if transform.rotation.z.abs() > wiggle_effect.0.abs() {
-            wiggle_effect.0 = -wiggle_effect.0;
-        }
-        transform.rotate_z(WIGGLE_SPEED.sin() * wiggle_effect.0);
+        wiggle_effect.act = (wiggle_effect.act + wiggle_effect.speed * timer.delta_seconds()) % (PI * 2.0);
+        transform.rotation = Quat::from_rotation_z(wiggle_effect.act.sin() * wiggle_effect.magnitude);
     }
 }
 
@@ -109,23 +108,6 @@ fn update_rotate_around(
     let dt = timer.delta_seconds();
     for (rotate_around, mut transform) in q.iter_mut() {
         transform.rotate_around(rotate_around.origin, Quat::from_rotation_z(rotate_around.angvel * dt));
-    }
-}
-
-pub fn movement_detection(
-    mut commands: Commands,
-    q: Query<(Entity, &KinematicCharacterController, Option<&WiggleEffect>), (Changed<KinematicCharacterController> ,With<Character>)>,
-) {
-    for (entity, controller, wiggle_effect) in q.iter() {
-        if controller.translation.is_some() {
-            if wiggle_effect.is_none() {
-                commands.entity(entity).insert(WiggleEffect(FRAC_PI_8 / 4.0));
-            }
-        } else {
-            if wiggle_effect.is_some() {
-                commands.entity(entity).remove::<WiggleEffect>();
-            }
-        }
     }
 }
 
@@ -141,12 +123,12 @@ fn stop_wiggle_effect(
     }
 }
 
-
 fn input(
+    mut commands: Commands,
     keyboard_input: Res<Input<KeyCode>>,
-    mut player_q: Query<&mut KinematicCharacterController, With<PlayerControlled>>,
+    mut player_q: Query<(Entity, &Character, &mut KinematicCharacterController, Option<&WiggleEffect>), With<PlayerControlled>>,
 ) {
-    let Ok(mut controller) = player_q.get_single_mut() else {
+    let Ok((entity, character, mut controller, wiggle_effect)) = player_q.get_single_mut() else {
         return;
     };
 
@@ -165,7 +147,14 @@ fn input(
     }
 
     if velocity != Vec2::ZERO {
-        controller.translation = Some(velocity.normalize() * PLAYER_VELOCITY);
+        controller.translation = Some(velocity.normalize() * character.speed);
+        if wiggle_effect.is_none() {
+            commands.entity(entity).insert(WiggleEffect::default());
+        }
+    } else {
+        if wiggle_effect.is_some() {
+            commands.entity(entity).remove::<WiggleEffect>();
+        }
     }
 }
 

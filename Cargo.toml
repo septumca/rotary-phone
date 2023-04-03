@@ -10,6 +10,8 @@ bevy = "0.10.0"
 bevy-inspector-egui = "0.18.1"
 rand = "0.8.5"
 bevy_rapier2d = { version = "0.21.0", features = [ "wasm-bindgen", "debug-render-2d" ] }
+once_cell = "1.17.1"
+bevy_prototype_debug_lines = "0.10"
 #https://github.com/abnormalbrain/bevy_particle_systems
 
 # Enable a small amount of optimization in debug mode

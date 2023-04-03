@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::CollisionEvent;
 
-use crate::{GameState, components::{Attack, Wall, Health}};
+use crate::{GameState, components::{Attack, Obstacle, Health}};
 
 pub struct CollisionPlugin;
 
@@ -19,7 +19,7 @@ fn handle_events(
     mut collision_events: EventReader<CollisionEvent>,
     // mut contact_force_events: EventReader<ContactForceEvent>,
     attack_q: Query<&Attack>,
-    wall_q: Query<Entity, With<Wall>>,
+    wall_q: Query<Entity, With<Obstacle>>,
     mut health_q: Query<&mut Health>,
 ) {
     for collision_event in collision_events.iter() {
