@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{GameState, components::{Character, TTL}};
+use crate::{GameState, components::{TTL, AttackCD}};
 
 pub struct TimersPlugin;
 
@@ -8,18 +8,29 @@ impl Plugin for TimersPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems((
-                update_character,
+                update_cd::<AttackCD>,
                 update_ttl,
             ).in_set(OnUpdate(GameState::Playing)));
     }
 }
 
-fn update_character(
-    timer: Res<Time>,
-    mut character_q: Query<&mut Character>,
-) {
-    for mut ch in character_q.iter_mut() {
-        ch.attack_cd.tick(timer.delta());
+pub trait WithTimer {
+    fn timer(&self) -> &Timer;
+    fn timer_mut(&mut self) -> &mut Timer;
+}
+
+fn update_cd<T>(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut t_q: Query<(Entity, &mut T)>,
+)
+where T: WithTimer + Component,
+{
+    let dt = time.delta();
+    for (e, mut t) in t_q.iter_mut() {
+        if t.timer_mut().tick(dt).finished() {
+            commands.entity(e).remove::<T>();
+        }
     }
 }
 

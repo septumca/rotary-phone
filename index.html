@@ -2,7 +2,7 @@
   <head>
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
   </head>
-  <body>
+  <body oncontextmenu="return false;">
     <!-- Note the usage of `type=module` here as this is an ES6 module -->
     <script type="module">
       // Use ES module import syntax to import functionality from the module
@@ -12,7 +12,7 @@
       // will "boot" the module and make it ready to use. Currently browsers
       // don't support natively imported WebAssembly as an ES module, but
       // eventually the manual initialization won't be required!
-      import init from './web_dist/buckle-up.js';
+      import init from './web_dist/rotary-phone.js';
 
       async function run() {
         // First up we need to actually load the wasm file, so we use the

@@ -1,8 +1,23 @@
 use bevy::{prelude::*};
 
+use crate::{plugins::timers::WithTimer};
+
 #[derive(Component)]
+pub struct HealthBar;
+
+#[derive(Component)]
+pub struct RandomWalkAi(pub Timer);
+
+impl RandomWalkAi {
+    pub fn new() -> Self {
+        Self(Timer::from_seconds(0.0, TimerMode::Once))
+    }
+}
+
+#[derive(Component, Clone)]
 pub enum EquippedSkill {
-    Fire,
+    FireBall,
+    Punch(f32),
     Slash,
 }
 
@@ -10,9 +25,7 @@ pub enum EquippedSkill {
 pub struct PlayerControlled;
 
 #[derive(Component)]
-pub struct Character {
-  pub attack_cd: Timer,
-}
+pub struct Character;
 
 #[derive(Component)]
 pub struct TargetPosition(pub Vec2);
@@ -33,7 +46,15 @@ impl RotateAroundPoint {
 }
 
 #[derive(Component)]
-pub struct Attack;
+pub struct Attack {
+    pub value: f32
+}
+
+#[derive(Component)]
+pub struct Health {
+    pub max: f32,
+    pub act: f32,
+}
 
 #[derive(Component)]
 pub struct Projectile;
@@ -45,12 +66,23 @@ pub struct Slash;
 pub struct Wall;
 
 #[derive(Component)]
-pub enum Controls {
-    Idle,
-    Move(Vec2),
-    Attack(Vec2)
+pub struct AttackCD(pub Timer);
+
+impl AttackCD {
+    pub fn new(seconds: f32) -> Self {
+        Self(Timer::from_seconds(seconds, TimerMode::Once))
+    }
 }
 
+impl WithTimer for AttackCD {
+    fn timer(&self) -> &Timer {
+        &self.0
+    }
+
+    fn timer_mut(&mut self) -> &mut Timer {
+        &mut self.0
+    }
+}
 
 #[derive(Component)]
 pub struct TTL(pub Timer);
