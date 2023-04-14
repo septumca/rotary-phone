@@ -1,6 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::{prelude::*, window::WindowResolution, math::{vec2}};
+use bevy::{prelude::*, window::WindowResolution, math::vec2};
 
 #[cfg(debug_assertions)]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -18,12 +18,11 @@ use bevy_rapier2d::{
     },
     render::RapierDebugRenderPlugin
 };
-use components::{Obstacle, PlayerControlled, EquippedSkill, Character, Health, HealthBar, Group};
-use plugins::{timers::TimersPlugin, collision::CollisionPlugin, events::EventsPlugin, skills::SkillsPlugin, character::{CharacterPlugin, PLAYER_VELOCITY}, ai::{AiPlugin, steer::{SteerAi, SteerConfiguration, other::{RandomAroundArea}, avoid::{AvoidObstacles, AvoidGroup}, chase::{ChaseTargets, ChaseThenStrageAround}}}};
+use components::{Obstacle, PlayerControlled, Character, Health, HealthBar, Group};
+use plugins::{timers::TimersPlugin, collision::CollisionPlugin, character::{CharacterPlugin, PLAYER_VELOCITY}};
 
 pub mod components;
 pub mod plugins;
-pub mod context_map;
 
 const SCREEN_WIDTH: f32 = 640.0;
 const SCREEN_HEIGHT: f32 = 480.0;
@@ -32,9 +31,7 @@ const SCALE_FACTOR: f32 = 3.0;
 const SPRITE_DRAW_SIZE: f32 = SPRITE_SIZE * SCALE_FACTOR;
 const CHARACTER_Z_INDEX: f32 = 1.0;
 const ATTACK_Z_INDEX: f32 = 1.5;
-const FIREBALL_SPEED: f32 = 500.0;
-const PUNCH_SPEED: f32 = 500.0;
-const SLASH_SPEED: f32 = FRAC_PI_2;
+const PROJECTILE_SPEED: f32 = 500.0;
 
 pub fn lerp(start: f32, end: f32, ratio: f32) -> f32 {
     start * (1.0 - ratio) + end * ratio
@@ -63,12 +60,9 @@ fn main() {
             gravity: Vec2::ZERO,
             ..Default::default()
         })
-        .add_plugin(EventsPlugin)
         .add_plugin(TimersPlugin)
         .add_plugin(CollisionPlugin)
-        .add_plugin(SkillsPlugin)
         .add_plugin(CharacterPlugin)
-        .add_plugin(AiPlugin)
         .add_startup_system(setup)
         .add_system(setup_world.in_schedule(OnEnter(GameState::Playing)))
         ;
@@ -135,7 +129,7 @@ fn setup_world(
     }
 
 
-    let player_entity = commands.spawn((
+    commands.spawn((
         Character {
             speed: PLAYER_VELOCITY
         },
@@ -150,13 +144,12 @@ fn setup_world(
             transform: Transform::from_xyz(0., 0., CHARACTER_Z_INDEX),
             ..default()
         },
-        EquippedSkill::Punch(SPRITE_DRAW_SIZE * 0.3),
         RigidBody::KinematicVelocityBased,
         Collider::cuboid(SPRITE_DRAW_SIZE * 0.3, SPRITE_DRAW_SIZE * 0.4),
         KinematicCharacterController::default(),
         LockedAxes::ROTATION_LOCKED,
         ActiveEvents::COLLISION_EVENTS
-    )).id();
+    ));
 
     commands.spawn((
         Character {
@@ -167,9 +160,6 @@ fn setup_world(
             max: 1.0
         },
         Group(1),
-        SteerAi::default(),
-        // AvoidObstacles(SteerConfiguration::new(SPRITE_DRAW_SIZE, 200.0)),
-        ChaseThenStrageAround(SteerConfiguration::new(200.0, 600.0), player_entity),
         SpriteBundle {
             sprite: Sprite {
                 custom_size: Some(vec2(SPRITE_DRAW_SIZE, SPRITE_DRAW_SIZE)),
@@ -180,7 +170,6 @@ fn setup_world(
             transform: Transform::from_xyz(200., 0., CHARACTER_Z_INDEX),
             ..default()
         },
-        EquippedSkill::Punch(SPRITE_DRAW_SIZE * 0.3),
         RigidBody::KinematicVelocityBased,
         Collider::cuboid(SPRITE_DRAW_SIZE * 0.4, SPRITE_DRAW_SIZE * 0.4),
         KinematicCharacterController::default(),

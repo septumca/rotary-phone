@@ -1,8 +1,8 @@
 use std::f32::consts::FRAC_PI_8;
 
-use bevy::{prelude::*};
+use bevy::prelude::*;
 
-use crate::{plugins::{timers::WithTimer, character::WIGGLE_SPEED}};
+use crate::plugins::{timers::WithTimer, character::WIGGLE_SPEED};
 
 
 #[derive(Component)]
@@ -10,14 +10,6 @@ pub struct Group(pub usize);
 
 #[derive(Component)]
 pub struct HealthBar;
-
-
-#[derive(Component, Clone)]
-pub enum EquippedSkill {
-    FireBall,
-    Punch(f32),
-    Slash,
-}
 
 #[derive(Component)]
 pub struct PlayerControlled;
@@ -50,18 +42,6 @@ impl Default for WiggleEffect {
 }
 
 #[derive(Component)]
-pub struct RotateAroundPoint {
-    pub origin: Vec3,
-    pub angvel: f32,
-}
-
-impl RotateAroundPoint {
-    pub fn new(origin: Vec3, angvel: f32) -> Self {
-        Self { origin, angvel }
-    }
-}
-
-#[derive(Component)]
 pub struct Attack {
     pub value: f32
 }
@@ -71,12 +51,6 @@ pub struct Health {
     pub max: f32,
     pub act: f32,
 }
-
-#[derive(Component)]
-pub struct Projectile;
-
-#[derive(Component)]
-pub struct Slash;
 
 #[derive(Component)]
 pub struct Obstacle;

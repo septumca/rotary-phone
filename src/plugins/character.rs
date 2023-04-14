@@ -1,10 +1,13 @@
-use std::f32::consts::{PI};
-use bevy::prelude::*;
-use bevy_rapier2d::prelude::{KinematicCharacterController};
+use std::f32::consts::{PI, FRAC_PI_2};
+use bevy::{prelude::*, math::vec2};
+use bevy_rapier2d::prelude::{
+    Collider,
+    RigidBody,
+    KinematicCharacterController,
+    ActiveEvents, Sensor, Velocity,
+};
 
-use crate::{GameState, components::{TargetPosition, WiggleEffect, RotateAroundPoint, Health, PlayerControlled, EquippedSkill, AttackCD, HealthBar, Character}, SPRITE_DRAW_SIZE};
-
-use super::events::SkillEvent;
+use crate::{GameState, components::{TargetPosition, WiggleEffect, PlayerControlled, AttackCD, HealthBar, Character, Health, TTL, Attack}, SPRITE_DRAW_SIZE, SPRITE_SIZE, GameResources, ATTACK_Z_INDEX, PROJECTILE_SPEED};
 
 pub const WIGGLE_SPEED: f32 = 50.0;
 pub const PLAYER_VELOCITY: f32 = 3.0;
@@ -31,7 +34,6 @@ impl Plugin for MovementPlugin {
         .add_systems((
             move_to_target_position,
             update_wiggle_effect,
-            update_rotate_around,
             stop_wiggle_effect,
         ).in_set(OnUpdate(GameState::Playing)));
     }
@@ -101,16 +103,6 @@ fn update_wiggle_effect(
     }
 }
 
-fn update_rotate_around(
-    timer: Res<Time>,
-    mut q: Query<(&RotateAroundPoint, &mut Transform)>,
-) {
-    let dt = timer.delta_seconds();
-    for (rotate_around, mut transform) in q.iter_mut() {
-        transform.rotate_around(rotate_around.origin, Quat::from_rotation_z(rotate_around.angvel * dt));
-    }
-}
-
 fn stop_wiggle_effect(
     mut removals: RemovedComponents<WiggleEffect>,
     mut q: Query<&mut Transform>,
@@ -159,13 +151,14 @@ fn input(
 }
 
 fn mouse_input(
+    mut commands: Commands,
+    game_resources: Res<GameResources>,
     mouse_button_input: Res<Input<MouseButton>>,
     window: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
-    mut skill_events: EventWriter<SkillEvent>,
-    mut player_q: Query<(Entity, &Transform, &KinematicCharacterController, Option<&EquippedSkill>), (With<PlayerControlled>, Without<Camera>, Without<AttackCD>)>,
+    mut player_q: Query<(Entity, &Transform, &KinematicCharacterController), (With<PlayerControlled>, Without<Camera>, Without<AttackCD>)>,
 ) {
-    let Ok((entity, transform, controller, equipped_skill)) = player_q.get_single_mut() else {
+    let Ok((entity, transform, controller)) = player_q.get_single_mut() else {
         return;
     };
     let Ok(window) = window.get_single() else {
@@ -181,20 +174,37 @@ fn mouse_input(
         return;
     };
 
-    let Some(equipped_skill) = equipped_skill else {
-        return;
-    };
 
     if mouse_button_input.pressed(MouseButton::Left) {
-        let spawn_vector = (mouse_position - transform.translation.truncate()).normalize();
+        let player_position = transform.translation.truncate();
+        let spawn_vector = (mouse_position - player_position).normalize();
         let angle = spawn_vector.y.atan2(spawn_vector.x);
-        skill_events.send(SkillEvent {
-            kind: equipped_skill.clone(),
-            parent: entity,
-            angle,
-            //magic value so that when player moves forward the attack starts litte bit infront and not otherwise
-            start_position: transform.translation.truncate() + controller.translation.unwrap_or(Vec2::ZERO) * 4.0,
-            spawn_vector_norm: spawn_vector
-        });
+        let spawn_position = player_position + spawn_vector * SPRITE_DRAW_SIZE;
+        commands.entity(entity).insert(AttackCD::new(2.0));
+        
+        commands.spawn((
+            Attack {
+                value: 1.5,
+            },
+            TTL::new(2.5),
+            SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(vec2(SPRITE_DRAW_SIZE, SPRITE_DRAW_SIZE)),
+                    rect: Some(Rect::new(3.0 * SPRITE_SIZE, 0.0, 4.0 * SPRITE_SIZE, SPRITE_SIZE)),
+                    ..default()
+                },
+                texture: game_resources.image_handle.clone(),
+                transform: Transform::from_xyz(spawn_position.x, spawn_position.y, ATTACK_Z_INDEX).with_rotation(Quat::from_rotation_z(angle+FRAC_PI_2)),
+                ..default()
+            },
+            RigidBody::Dynamic,
+            Sensor,
+            Collider::cuboid(SPRITE_DRAW_SIZE / 2.0 - 10.0, SPRITE_DRAW_SIZE / 2.0 - 10.0),
+            ActiveEvents::COLLISION_EVENTS,
+            Velocity {
+                linvel: spawn_vector * PROJECTILE_SPEED,
+                ..default()
+            },
+        ));
     }
 }
