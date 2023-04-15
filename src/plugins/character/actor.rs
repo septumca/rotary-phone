@@ -1,4 +1,7 @@
-use std::f32::consts::{PI, FRAC_PI_2};
+use crate::plugins::character::PlayerControlled;
+use crate::plugins::character::Character;
+use std::f32::consts::FRAC_PI_2;
+
 use bevy::{prelude::*, math::vec2};
 use bevy_rapier2d::prelude::{
     Collider,
@@ -7,9 +10,9 @@ use bevy_rapier2d::prelude::{
     ActiveEvents, Sensor, Velocity,
 };
 
-use crate::{GameState, components::{TargetPosition, WiggleEffect, PlayerControlled, AttackCD, HealthBar, Character, Health, TTL, Attack}, SPRITE_DRAW_SIZE, SPRITE_SIZE, GameResources, ATTACK_Z_INDEX, PROJECTILE_SPEED};
+use crate::plugins::character::wiggle::WiggleEffect;
+use crate::{GameState, components::{AttackCD, TTL, Attack}, SPRITE_DRAW_SIZE, SPRITE_SIZE, GameResources, ATTACK_Z_INDEX, PROJECTILE_SPEED};
 
-pub const WIGGLE_SPEED: f32 = 50.0;
 pub const PLAYER_VELOCITY: f32 = 3.0;
 
 
@@ -33,47 +36,22 @@ impl Plugin for MovementPlugin {
         app
         .add_systems((
             move_to_target_position,
-            update_wiggle_effect,
-            stop_wiggle_effect,
         ).in_set(OnUpdate(GameState::Playing)));
     }
 }
 
-pub struct CharacterPlugin;
 
-impl Plugin for CharacterPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .add_plugin(PlayerInputPlugin)
-            .add_plugin(MovementPlugin)
-            .add_systems((
-                cleanup_on_zero_health,
-                update_health_bar,
-            ).in_set(OnUpdate(GameState::Playing)));
+#[derive(Component)]
+pub struct TargetPosition(Vec2);
+
+impl TargetPosition {
+    pub fn new(pos: Vec2) -> Self {
+        Self(pos)
     }
-}
 
-fn cleanup_on_zero_health(
-    mut commands: Commands,
-    health_q: Query<(Entity, &Health), Changed<Health>>,
-) {
-    for (entity, health) in health_q.iter() {
-        if health.act <= 0.0 {
-            commands.entity(entity).despawn_recursive();
-        }
-    }
-}
-
-fn update_health_bar(
-    health_q: Query<&Health, Changed<Health>>,
-    mut healthbar_q: Query<(&Parent, &mut Sprite), (With<HealthBar>, Without<Health>)>,
-) {
-    for (parent, mut sprite) in healthbar_q.iter_mut() {
-        let Ok(health) = health_q.get(parent.get()) else {
-            continue;
-        };
-        let ratio = health.act / health.max;
-        sprite.custom_size = Some(Vec2::new(SPRITE_DRAW_SIZE * ratio, 8.0));
+    pub fn update(&mut self, x: f32, y: f32) {
+        self.0.x = x;
+        self.0.y = y;
     }
 }
 
@@ -90,28 +68,6 @@ fn move_to_target_position(
         }
         let velocity = delta_v.normalize() * character.speed;
         controller.translation = Some(velocity);
-    }
-}
-
-fn update_wiggle_effect(
-    timer: Res<Time>,
-    mut q: Query<(&mut WiggleEffect, &mut Transform)>,
-) {
-    for (mut wiggle_effect, mut transform) in q.iter_mut() {
-        wiggle_effect.act = (wiggle_effect.act + wiggle_effect.speed * timer.delta_seconds()) % (PI * 2.0);
-        transform.rotation = Quat::from_rotation_z(wiggle_effect.act.sin() * wiggle_effect.magnitude);
-    }
-}
-
-fn stop_wiggle_effect(
-    mut removals: RemovedComponents<WiggleEffect>,
-    mut q: Query<&mut Transform>,
-) {
-    for entity in removals.iter() {
-        let Ok(mut transform) = q.get_mut(entity) else {
-            continue;
-        };
-        transform.rotation = Quat::from_rotation_z(0.0);
     }
 }
 
@@ -156,9 +112,9 @@ fn mouse_input(
     mouse_button_input: Res<Input<MouseButton>>,
     window: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
-    mut player_q: Query<(Entity, &Transform, &KinematicCharacterController), (With<PlayerControlled>, Without<Camera>, Without<AttackCD>)>,
+    mut player_q: Query<(Entity, &Transform), (With<PlayerControlled>, Without<Camera>, Without<AttackCD>)>,
 ) {
-    let Ok((entity, transform, controller)) = player_q.get_single_mut() else {
+    let Ok((entity, transform)) = player_q.get_single_mut() else {
         return;
     };
     let Ok(window) = window.get_single() else {
@@ -180,11 +136,11 @@ fn mouse_input(
         let spawn_vector = (mouse_position - player_position).normalize();
         let angle = spawn_vector.y.atan2(spawn_vector.x);
         let spawn_position = player_position + spawn_vector * SPRITE_DRAW_SIZE;
-        commands.entity(entity).insert(AttackCD::new(2.0));
+        commands.entity(entity).insert(AttackCD::new(1.0));
         
         commands.spawn((
             Attack {
-                value: 1.5,
+                value: 0.3,
             },
             TTL::new(2.5),
             SpriteBundle {

@@ -1,7 +1,9 @@
+use crate::Health;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::CollisionEvent;
 
-use crate::{GameState, components::{Attack, Obstacle, Health}};
+use crate::components::{Attack, Obstacle};
+use crate::GameState;
 
 pub struct CollisionPlugin;
 
@@ -39,8 +41,7 @@ fn handle_events(
                 }
 
                 if let Ok(mut health) =  health_q.get_mut(other) {
-                    health.act -= attack.value;
-                    info!("HIT someone with health, current health is {}", health.act);
+                    health.change(-attack.value);
                 }
                 commands.entity(attack_e).despawn_recursive();
             },

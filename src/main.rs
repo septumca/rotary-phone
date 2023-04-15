@@ -1,5 +1,9 @@
-use std::f32::consts::FRAC_PI_2;
-
+use crate::plugins::character::PlayerControlled;
+use crate::plugins::character::Character;
+use crate::plugins::character::health::HealthBar;
+use crate::plugins::character::health::Health;
+use crate::plugins::character::actor::PLAYER_VELOCITY;
+use arena::ArenaPlugin;
 use bevy::{prelude::*, window::WindowResolution, math::vec2};
 
 #[cfg(debug_assertions)]
@@ -13,21 +17,25 @@ use bevy_rapier2d::{
         Collider,
         RigidBody,
         RapierConfiguration,
-        KinematicCharacterController,
-        ActiveCollisionTypes, LockedAxes, ActiveEvents,
+        KinematicCharacterController, LockedAxes, ActiveEvents,
     },
     render::RapierDebugRenderPlugin
 };
-use components::{Obstacle, PlayerControlled, Character, Health, HealthBar, Group};
-use plugins::{timers::TimersPlugin, collision::CollisionPlugin, character::{CharacterPlugin, PLAYER_VELOCITY}};
+use components::{Obstacle, Group};
+use plugins::ai::AiPlugin;
+use plugins::ai::FollowAi;
+use plugins::ai::RushAi;
+use plugins::{collision::CollisionPlugin, character::CharacterPlugin};
+use plugins::timers::TimersPlugin;
 
+pub mod arena;
 pub mod components;
 pub mod plugins;
 
-const SCREEN_WIDTH: f32 = 640.0;
-const SCREEN_HEIGHT: f32 = 480.0;
+const SCREEN_WIDTH: f32 = 800.0;
+const SCREEN_HEIGHT: f32 = 600.0;
 const SPRITE_SIZE: f32 = 16.0;
-const SCALE_FACTOR: f32 = 3.0;
+const SCALE_FACTOR: f32 = 2.5;
 const SPRITE_DRAW_SIZE: f32 = SPRITE_SIZE * SCALE_FACTOR;
 const CHARACTER_Z_INDEX: f32 = 1.0;
 const ATTACK_Z_INDEX: f32 = 1.5;
@@ -63,6 +71,8 @@ fn main() {
         .add_plugin(TimersPlugin)
         .add_plugin(CollisionPlugin)
         .add_plugin(CharacterPlugin)
+        .add_plugin(ArenaPlugin)
+        .add_plugin(AiPlugin)
         .add_startup_system(setup)
         .add_system(setup_world.in_schedule(OnEnter(GameState::Playing)))
         ;
@@ -110,29 +120,27 @@ fn setup_world(
         (-150., 100.),
         (150., 100.),
     ] {
-        commands.spawn((
-            RigidBody::Fixed,
-            Collider::cuboid(SPRITE_DRAW_SIZE / 2.0, SPRITE_DRAW_SIZE / 2.0),
-            SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(vec2(SPRITE_DRAW_SIZE, SPRITE_DRAW_SIZE)),
-                    rect: Some(Rect::new(6.0 * SPRITE_SIZE, 0., 7.0 * SPRITE_SIZE, SPRITE_SIZE)),
-                    ..default()
-                },
-                texture: game_resources.image_handle.clone(),
-                transform: Transform::from_xyz(x, y, CHARACTER_Z_INDEX),
-                ..default()
-            },
-            ActiveCollisionTypes::all(),
-            Obstacle,
-        ));
+        //commands.spawn((
+        //    RigidBody::Fixed,
+        //    Collider::cuboid(SPRITE_DRAW_SIZE / 2.0, SPRITE_DRAW_SIZE / 2.0),
+        //    SpriteBundle {
+        //        sprite: Sprite {
+        //            custom_size: Some(vec2(SPRITE_DRAW_SIZE, SPRITE_DRAW_SIZE)),
+        //            rect: Some(Rect::new(6.0 * SPRITE_SIZE, 0., 7.0 * SPRITE_SIZE, SPRITE_SIZE)),
+        //            ..default()
+        //        },
+        //        texture: game_resources.image_handle.clone(),
+        //        transform: Transform::from_xyz(x, y, CHARACTER_Z_INDEX),
+        //        ..default()
+        //    },
+        //    ActiveCollisionTypes::all(),
+        //    Obstacle,
+        //));
     }
 
 
     commands.spawn((
-        Character {
-            speed: PLAYER_VELOCITY
-        },
+        Character::new(PLAYER_VELOCITY),
         PlayerControlled,
         SpriteBundle {
             sprite: Sprite {
@@ -152,13 +160,10 @@ fn setup_world(
     ));
 
     commands.spawn((
-        Character {
-            speed: PLAYER_VELOCITY * 0.95
-        },
-        Health {
-            act: 1.0,
-            max: 1.0
-        },
+        //FollowAi::new(0.5),
+        RushAi::new(1.0), //TODO nefunguje ked je hrac v rohu!
+        Character::new(PLAYER_VELOCITY * 0.6),
+        Health::new(1.0),
         Group(1),
         SpriteBundle {
             sprite: Sprite {
