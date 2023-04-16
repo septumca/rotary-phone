@@ -23,8 +23,8 @@ use bevy_rapier2d::{
 };
 use components::{Obstacle, Group};
 use plugins::ai::AiPlugin;
-use plugins::ai::FollowAi;
-use plugins::ai::RushAi;
+use plugins::ai::SimpleAi;
+use plugins::ai::routines::RushRoutine;
 use plugins::{collision::CollisionPlugin, character::CharacterPlugin};
 use plugins::timers::TimersPlugin;
 
@@ -161,7 +161,8 @@ fn setup_world(
 
     commands.spawn((
         //FollowAi::new(0.5),
-        RushAi::new(1.0), //TODO nefunguje ked je hrac v rohu!
+        RushRoutine::new(1.0, 200.0), //TODO nefunguje ked je hrac v rohu!
+        SimpleAi,
         Character::new(PLAYER_VELOCITY * 0.6),
         Health::new(1.0),
         Group(1),

@@ -36,6 +36,12 @@ impl Plugin for MovementPlugin {
         app
         .add_systems((
             move_to_target_position,
+            add_move_effect::<WiggleEffect>
+                .after(move_to_target_position)
+                .after(input),
+            remove_move_effect::<WiggleEffect>
+                .after(move_to_target_position)
+                .after(input),
         ).in_set(OnUpdate(GameState::Playing)));
     }
 }
@@ -55,6 +61,29 @@ impl TargetPosition {
     }
 }
 
+fn add_move_effect<T: Component + Default>(
+    mut commands: Commands,
+    mut q: Query<(Entity, &KinematicCharacterController), Without<T>>
+) {
+    for (entity, controller) in q.iter_mut() {
+        if controller.translation.is_some() {
+            commands.entity(entity).insert(T::default());
+        }
+    }
+}
+
+
+fn remove_move_effect<T: Component>(
+    mut commands: Commands,
+    mut q: Query<(Entity, &KinematicCharacterController), With<T>>
+) {
+    for (entity, controller) in q.iter_mut() {
+        if controller.translation.is_none() {
+            commands.entity(entity).remove::<T>();
+        }
+    }
+}
+
 fn move_to_target_position(
     mut commands: Commands,
     mut movable_q: Query<(Entity, &Character, &TargetPosition, &Transform, &mut KinematicCharacterController)>,
@@ -63,7 +92,6 @@ fn move_to_target_position(
         let delta_v = target_position.0 - transform.translation.truncate();
         if delta_v.length_squared() < 10.0 {
             commands.entity(entity).remove::<TargetPosition>();
-            commands.entity(entity).remove::<WiggleEffect>();
             continue;
         }
         let velocity = delta_v.normalize() * character.speed;
@@ -72,11 +100,10 @@ fn move_to_target_position(
 }
 
 fn input(
-    mut commands: Commands,
     keyboard_input: Res<Input<KeyCode>>,
-    mut player_q: Query<(Entity, &Character, &mut KinematicCharacterController, Option<&WiggleEffect>), With<PlayerControlled>>,
+    mut player_q: Query<(&Character, &mut KinematicCharacterController), With<PlayerControlled>>,
 ) {
-    let Ok((entity, character, mut controller, wiggle_effect)) = player_q.get_single_mut() else {
+    let Ok((character, mut controller)) = player_q.get_single_mut() else {
         return;
     };
 
@@ -96,13 +123,6 @@ fn input(
 
     if velocity != Vec2::ZERO {
         controller.translation = Some(velocity.normalize() * character.speed);
-        if wiggle_effect.is_none() {
-            commands.entity(entity).insert(WiggleEffect::default());
-        }
-    } else {
-        if wiggle_effect.is_some() {
-            commands.entity(entity).remove::<WiggleEffect>();
-        }
     }
 }
 

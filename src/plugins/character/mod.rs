@@ -34,4 +34,8 @@ impl Character {
     pub fn new(speed: f32) -> Self {
         Self { speed }
     }
+
+    pub fn update_speed(&mut self, change: f32) {
+        self.speed += change;
+    }
 }

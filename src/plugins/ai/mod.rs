@@ -1,107 +1,44 @@
-use crate::plugins::character::actor::TargetPosition;
+use crate::plugins::ai::events::EventDistanceReached;
 use crate::GameState;
-use crate::PlayerControlled;
 use bevy::prelude::*;
 
-use super::character::wiggle::WiggleEffect;
+use self::{routines::{RoutinesPlugin, FollowRoutine, RushRoutine}, events::{AiEventsPlugin, EventDistanceExited}};
+
+use super::character::actor::TargetPosition;
+
+pub mod routines;
+pub mod events;
 
 pub struct AiPlugin;
 
 impl Plugin for AiPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugin(RoutinesPlugin);
+        app.add_plugin(AiEventsPlugin);
         app.add_systems(
-            (
-                update_follow_ai, 
-                update_rush_ai
-            ).in_set(OnUpdate(GameState::Playing))
+            (update_simple_ai,).in_set(OnUpdate(GameState::Playing)),
         );
     }
 }
 
 #[derive(Component)]
-pub struct RushAi {
-    timer: Timer,
-}
+pub struct SimpleAi;
 
-impl RushAi {
-    pub fn new(time: f32) -> Self {
-        Self {
-            timer: Timer::from_seconds(time, TimerMode::Repeating),
-        }
-    }
-}
-
-fn update_rush_ai(
+fn update_simple_ai(
     mut commands: Commands,
-    time: Res<Time>,
-    mut ai_q: Query<(
-        Entity,
-        &mut RushAi,
-        Option<&mut TargetPosition>,
-        Option<&WiggleEffect>,
-    )>,
-    player_q: Query<&Transform, With<PlayerControlled>>,
+    mut dr_ev: EventReader<EventDistanceReached>,
+    mut de_ev: EventReader<EventDistanceExited>,
 ) {
-    let Ok(player_transform) = player_q.get_single() else {
-        return;
-    };
-    let dt = time.delta();
-    for (entity, mut rush_ai, target_position, wiggle_effect) in ai_q.iter_mut() {
-        if target_position.is_some() {
-            continue;
-        }
-        if rush_ai.timer.tick(dt).just_finished() {
-            rush_ai.timer.reset();
-            commands
-                .entity(entity)
-                .insert(TargetPosition::new(player_transform.translation.truncate()));
-            if wiggle_effect.is_none() {
-                commands.entity(entity).insert(WiggleEffect::default());
-            }
-        }
+    for ev in dr_ev.iter() {
+        commands.entity(ev.parent).remove::<FollowRoutine>();
+        commands.entity(ev.parent).remove::<TargetPosition>();
+        commands.entity(ev.parent).insert(RushRoutine::new(1.0, 220.0)); 
+    }
+
+    for ev in de_ev.iter() {
+        commands.entity(ev.parent).remove::<RushRoutine>();
+        commands.entity(ev.parent).remove::<TargetPosition>();
+        commands.entity(ev.parent).insert(FollowRoutine::new(0.1, 200.0)); 
     }
 }
 
-#[derive(Component)]
-pub struct FollowAi(Timer);
-
-impl FollowAi {
-    pub fn new(time: f32) -> Self {
-        Self(Timer::from_seconds(time, TimerMode::Repeating))
-    }
-}
-
-fn update_follow_ai(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut ai_q: Query<(
-        Entity,
-        &mut FollowAi,
-        Option<&mut TargetPosition>,
-        Option<&WiggleEffect>,
-    )>,
-    player_q: Query<&Transform, With<PlayerControlled>>,
-) {
-    let Ok(player_transform) = player_q.get_single() else {
-        return;
-    };
-    let dt = time.delta();
-    for (entity, mut follow_ai, target_position, wiggle_effect) in ai_q.iter_mut() {
-        if !follow_ai.0.tick(dt).just_finished() {
-            continue;
-        }
-        if let Some(mut target_position) = target_position {
-            target_position.update(
-                player_transform.translation.x,
-                player_transform.translation.y,
-            );
-        } else {
-            commands
-                .entity(entity)
-                .insert(TargetPosition::new(player_transform.translation.truncate()));
-        }
-        if wiggle_effect.is_none() {
-            commands.entity(entity).insert(WiggleEffect::default());
-        }
-    }
-}
