@@ -5,9 +5,12 @@ use actor::{PlayerInputPlugin, MovementPlugin};
 pub mod actor;
 pub mod wiggle;
 pub mod health;
+pub mod dash;
 
 use wiggle::WigglePlugin;
 use health::HealthPlugin;
+
+use self::dash::DashEffectPlugin;
 
 pub struct CharacterPlugin;
 
@@ -18,6 +21,7 @@ impl Plugin for CharacterPlugin {
             .add_plugin(WigglePlugin)
             .add_plugin(PlayerInputPlugin)
             .add_plugin(MovementPlugin)
+            .add_plugin(DashEffectPlugin)
             ;
     }
 }

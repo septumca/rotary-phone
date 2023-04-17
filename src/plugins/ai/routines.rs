@@ -1,5 +1,6 @@
 use crate::plugins::character::Character;
 use crate::plugins::character::actor::TargetPosition;
+use crate::plugins::character::dash::Dashing;
 use crate::{GameState, PlayerControlled};
 use bevy::prelude::*;
 
@@ -78,7 +79,8 @@ fn update_rush_routine(
             }
             commands
                 .entity(entity)
-                .insert(TargetPosition::new(player_transform.translation.truncate()));
+                .insert(TargetPosition::new(player_transform.translation.truncate()))
+                .insert(Dashing::new(0.05));
         }
     }
 }

@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use self::{routines::{RoutinesPlugin, FollowRoutine, RushRoutine}, events::{AiEventsPlugin, EventDistanceExited}};
 
-use super::character::actor::TargetPosition;
+use super::character::{actor::TargetPosition, dash::Dashing};
 
 pub mod routines;
 pub mod events;
@@ -31,12 +31,14 @@ fn update_simple_ai(
 ) {
     for ev in dr_ev.iter() {
         commands.entity(ev.parent).remove::<FollowRoutine>();
+        commands.entity(ev.parent).remove::<Dashing>();
         commands.entity(ev.parent).remove::<TargetPosition>();
         commands.entity(ev.parent).insert(RushRoutine::new(1.0, 220.0)); 
     }
 
     for ev in de_ev.iter() {
         commands.entity(ev.parent).remove::<RushRoutine>();
+        commands.entity(ev.parent).remove::<Dashing>();
         commands.entity(ev.parent).remove::<TargetPosition>();
         commands.entity(ev.parent).insert(FollowRoutine::new(0.1, 200.0)); 
     }
