@@ -11,10 +11,14 @@ pub struct EventDistanceExited {
     pub parent: Entity,
 }
 
+pub struct EventAttackFinished {
+    pub parent: Entity,
+}
 
 impl Plugin for AiEventsPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<EventDistanceReached>();
         app.add_event::<EventDistanceExited>();
+        app.add_event::<EventAttackFinished>();
     }
 }

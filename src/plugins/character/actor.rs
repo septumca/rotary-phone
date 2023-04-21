@@ -1,31 +1,22 @@
-use crate::plugins::character::PlayerControlled;
 use crate::plugins::character::Character;
-use std::f32::consts::FRAC_PI_2;
+use crate::plugins::character::PlayerControlled;
 
-use bevy::{prelude::*, math::vec2};
-use bevy_rapier2d::prelude::{
-    Collider,
-    RigidBody,
-    KinematicCharacterController,
-    ActiveEvents, Sensor, Velocity,
-};
+use bevy::prelude::*;
+use bevy_rapier2d::prelude::KinematicCharacterController;
 
 use crate::plugins::character::wiggle::WiggleEffect;
-use crate::{GameState, components::{AttackCD, TTL, Attack}, SPRITE_DRAW_SIZE, SPRITE_SIZE, GameResources, ATTACK_Z_INDEX, PROJECTILE_SPEED};
+use crate::{components::AttackCD, GameState, PROJECTILE_SPEED, SPRITE_DRAW_SIZE};
+
+use super::skills::FireballSpawnData;
+use super::skills::SkillUsedEvent;
 
 pub const PLAYER_VELOCITY: f32 = 3.0;
-
 
 pub struct PlayerInputPlugin;
 
 impl Plugin for PlayerInputPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems((
-                input,
-                mouse_input,
-            )
-            .in_set(OnUpdate(GameState::Playing)));
+        app.add_systems((input, mouse_input).in_set(OnUpdate(GameState::Playing)));
     }
 }
 
@@ -33,19 +24,30 @@ pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app
-        .add_systems((
-            move_to_target_position,
-            add_move_effect::<WiggleEffect>
-                .after(move_to_target_position)
-                .after(input),
-            remove_move_effect::<WiggleEffect>
-                .after(move_to_target_position)
-                .after(input),
-        ).in_set(OnUpdate(GameState::Playing)));
+        app.add_systems(
+            (
+                move_to_target_position,
+                update_facing,
+                add_move_effect::<WiggleEffect>
+                    .after(move_to_target_position)
+                    .after(input),
+                remove_move_effect::<WiggleEffect>
+                    .after(move_to_target_position)
+                    .after(input),
+            )
+                .in_set(OnUpdate(GameState::Playing)),
+        );
     }
 }
 
+#[derive(Component)]
+pub struct ActorFacing(pub bool);
+
+#[derive(Component)]
+pub struct Weapon;
+
+#[derive(Component)]
+pub struct WeaponSprite;
 
 #[derive(Component)]
 pub struct TargetPosition(Vec2);
@@ -63,7 +65,7 @@ impl TargetPosition {
 
 fn add_move_effect<T: Component + Default>(
     mut commands: Commands,
-    mut q: Query<(Entity, &KinematicCharacterController), Without<T>>
+    mut q: Query<(Entity, &KinematicCharacterController), Without<T>>,
 ) {
     for (entity, controller) in q.iter_mut() {
         if controller.translation.is_some() {
@@ -72,10 +74,9 @@ fn add_move_effect<T: Component + Default>(
     }
 }
 
-
 fn remove_move_effect<T: Component>(
     mut commands: Commands,
-    mut q: Query<(Entity, &KinematicCharacterController), With<T>>
+    mut q: Query<(Entity, &KinematicCharacterController), With<T>>,
 ) {
     for (entity, controller) in q.iter_mut() {
         if controller.translation.is_none() {
@@ -84,9 +85,49 @@ fn remove_move_effect<T: Component>(
     }
 }
 
+fn update_facing(
+    mut actor_q: Query<
+        (&ActorFacing, &mut Sprite, &Children),
+        (Without<WeaponSprite>, Without<Weapon>, Changed<ActorFacing>),
+    >,
+    weapon_q: Query<&Children, With<Weapon>>,
+    mut weapon_sprite_q: Query<
+        (&mut Sprite, &mut Transform),
+        (With<WeaponSprite>, Without<Weapon>),
+    >,
+) {
+    for (actor_facing, mut sprite, children) in actor_q.iter_mut() {
+        sprite.flip_x = actor_facing.0;
+        for &children_weapon in children {
+            let Ok(weapon_children) = weapon_q.get(children_weapon) else {
+                continue;
+            };
+            for &weapon_child in weapon_children {
+                let Ok((mut weapon_sprite, mut transform)) =
+                    weapon_sprite_q.get_mut(weapon_child) else 
+                {
+                    continue;
+                };
+                //weapon_sprite.flip_x = actor_facing.0;
+                if actor_facing.0 {
+                    transform.translation.x = -SPRITE_DRAW_SIZE * 0.5;
+                } else {
+                    transform.translation.x = SPRITE_DRAW_SIZE * 0.5;
+                }
+            }
+        }
+    }
+}
+
 fn move_to_target_position(
     mut commands: Commands,
-    mut movable_q: Query<(Entity, &Character, &TargetPosition, &Transform, &mut KinematicCharacterController)>,
+    mut movable_q: Query<(
+        Entity,
+        &Character,
+        &TargetPosition,
+        &Transform,
+        &mut KinematicCharacterController,
+    )>,
 ) {
     for (entity, character, target_position, transform, mut controller) in movable_q.iter_mut() {
         let delta_v = target_position.0 - transform.translation.truncate();
@@ -128,11 +169,14 @@ fn input(
 
 fn mouse_input(
     mut commands: Commands,
-    game_resources: Res<GameResources>,
     mouse_button_input: Res<Input<MouseButton>>,
     window: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
-    mut player_q: Query<(Entity, &Transform), (With<PlayerControlled>, Without<Camera>, Without<AttackCD>)>,
+    mut player_q: Query<
+        (Entity, &Transform),
+        (With<PlayerControlled>, Without<Camera>, Without<AttackCD>),
+    >,
+    mut ev: EventWriter<SkillUsedEvent>,
 ) {
     let Ok((entity, transform)) = player_q.get_single_mut() else {
         return;
@@ -150,37 +194,16 @@ fn mouse_input(
         return;
     };
 
-
     if mouse_button_input.pressed(MouseButton::Left) {
         let player_position = transform.translation.truncate();
         let spawn_vector = (mouse_position - player_position).normalize();
         let angle = spawn_vector.y.atan2(spawn_vector.x);
         let spawn_position = player_position + spawn_vector * SPRITE_DRAW_SIZE;
         commands.entity(entity).insert(AttackCD::new(1.0));
-        
-        commands.spawn((
-            Attack {
-                value: 0.3,
-            },
-            TTL::new(2.5),
-            SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(vec2(SPRITE_DRAW_SIZE, SPRITE_DRAW_SIZE)),
-                    rect: Some(Rect::new(3.0 * SPRITE_SIZE, 0.0, 4.0 * SPRITE_SIZE, SPRITE_SIZE)),
-                    ..default()
-                },
-                texture: game_resources.image_handle.clone(),
-                transform: Transform::from_xyz(spawn_position.x, spawn_position.y, ATTACK_Z_INDEX).with_rotation(Quat::from_rotation_z(angle+FRAC_PI_2)),
-                ..default()
-            },
-            RigidBody::Dynamic,
-            Sensor,
-            Collider::cuboid(SPRITE_DRAW_SIZE / 2.0 - 10.0, SPRITE_DRAW_SIZE / 2.0 - 10.0),
-            ActiveEvents::COLLISION_EVENTS,
-            Velocity {
-                linvel: spawn_vector * PROJECTILE_SPEED,
-                ..default()
-            },
-        ));
+        ev.send(SkillUsedEvent::Fireball(FireballSpawnData::new(
+            spawn_position,
+            spawn_vector * PROJECTILE_SPEED,
+            angle,
+        )));
     }
 }

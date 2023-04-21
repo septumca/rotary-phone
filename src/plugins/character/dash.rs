@@ -1,3 +1,4 @@
+use crate::Character;
 use bevy::{prelude::*, math::{vec2, vec3}};
 use bevy_rapier2d::prelude::KinematicCharacterController;
 
@@ -6,6 +7,8 @@ use crate::{components::TTL, GameState, GameResources, SPRITE_DRAW_SIZE};
 use super::{actor::TargetPosition, PlayerControlled};
 
 const DASH_ALPHA_RATIO: f32 = 0.7;
+const DASH_PARTICLE_SPAWN_INTERVAL: f32 = 0.05;
+const DASH_SPEED_BONUS: f32 = 3.0;
 
 pub struct DashEffectPlugin;
 
@@ -14,9 +17,27 @@ impl Plugin for DashEffectPlugin {
         app.add_systems(
             (
                 update_dash_effect, 
+                update_speed, 
                 update_dashing_entity, 
                 remove_dash_effect,
             ).in_set(OnUpdate(GameState::Playing)));
+    }
+}
+
+fn update_speed(
+    mut removed: RemovedComponents<Dashing>,
+    mut added_q: Query<&mut Character, Added<Dashing>>,
+    mut removed_q: Query<&mut Character, Without<Dashing>>,
+) {
+    for re in removed.iter() {
+        let Ok(mut character) = removed_q.get_mut(re) else {
+            continue;
+        };
+        character.update_speed(-DASH_SPEED_BONUS);
+    }
+
+    for mut character in added_q.iter_mut() {
+        character.update_speed(DASH_SPEED_BONUS);
     }
 }
 
@@ -25,13 +46,15 @@ pub struct DashEffect;
 
 #[derive(Component)]
 pub struct Dashing {
+    particle_timer: Timer,
     timer: Timer,
 }
 
 impl Dashing {
     pub fn new(time: f32) -> Self {
         Self {
-            timer: Timer::from_seconds(time, TimerMode::Repeating),
+            particle_timer: Timer::from_seconds(DASH_PARTICLE_SPAWN_INTERVAL, TimerMode::Repeating),
+            timer: Timer::from_seconds(time, TimerMode::Once),
         }
     }
 }
@@ -68,12 +91,13 @@ fn update_dashing_entity(
 ) {
     let dt = timer.delta();
     for (sprite, transform, mut dashing) in q.iter_mut() {
+        dashing.timer.tick(dt);
         let translation = vec3(
             transform.translation.x,
             transform.translation.y,
             transform.translation.z - 0.1
         );
-        if dashing.timer.tick(dt).just_finished() {
+        if dashing.particle_timer.tick(dt).just_finished() {
             commands.spawn((
                 DashEffect,
                 TTL::new(0.3),

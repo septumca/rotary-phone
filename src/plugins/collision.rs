@@ -9,10 +9,7 @@ pub struct CollisionPlugin;
 
 impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems((
-                handle_events,
-            ).in_set(OnUpdate(GameState::Playing)));
+        app.add_systems((handle_events,).in_set(OnUpdate(GameState::Playing)));
     }
 }
 
@@ -36,15 +33,15 @@ fn handle_events(
                 }) else {
                     continue;
                 };
-                if let Ok(_) =  wall_q.get(other) {
-                    info!("WALL HIT");
+                if let Ok(_) = wall_q.get(other) {
+                    commands.entity(attack_e).despawn_recursive();
                 }
 
-                if let Ok(mut health) =  health_q.get_mut(other) {
+                if let Ok(mut health) = health_q.get_mut(other) {
                     health.change(-attack.value);
+                    commands.entity(attack_e).despawn_recursive();
                 }
-                commands.entity(attack_e).despawn_recursive();
-            },
+            }
             _ => {}
         }
     }

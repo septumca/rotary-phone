@@ -1,16 +1,19 @@
+use crate::plugins::character::skills::SkillsPlugin;
 use bevy::prelude::*;
 
 use actor::{PlayerInputPlugin, MovementPlugin};
 
+pub mod skills;
 pub mod actor;
 pub mod wiggle;
 pub mod health;
 pub mod dash;
+pub mod flip;
 
 use wiggle::WigglePlugin;
 use health::HealthPlugin;
 
-use self::dash::DashEffectPlugin;
+use self::{dash::DashEffectPlugin, flip::FlipEffectPlugin};
 
 pub struct CharacterPlugin;
 
@@ -22,6 +25,8 @@ impl Plugin for CharacterPlugin {
             .add_plugin(PlayerInputPlugin)
             .add_plugin(MovementPlugin)
             .add_plugin(DashEffectPlugin)
+            .add_plugin(FlipEffectPlugin)
+            .add_plugin(SkillsPlugin)
             ;
     }
 }
