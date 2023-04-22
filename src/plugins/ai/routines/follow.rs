@@ -42,7 +42,10 @@ pub fn update_follow_routine(
             < follow_routine.distance.powi(2)
         {
             commands.entity(entity).remove::<TargetPosition>();
-            ev.send(EventDistanceReached { parent: entity });
+            ev.send(EventDistanceReached {
+                parent: entity,
+                distance: follow_routine.distance,
+            });
         }
         if !follow_routine.timer.tick(dt).just_finished() {
             continue;

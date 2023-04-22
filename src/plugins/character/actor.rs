@@ -1,3 +1,5 @@
+use crate::PLAYER_PROJECTILE_FILTERS;
+use crate::PLAYER_PROJECTILE_MEMBERSHIP;
 use crate::plugins::character::Character;
 use crate::plugins::character::PlayerControlled;
 
@@ -7,7 +9,7 @@ use bevy_rapier2d::prelude::KinematicCharacterController;
 use crate::plugins::character::wiggle::WiggleEffect;
 use crate::{components::AttackCD, GameState, PROJECTILE_SPEED, SPRITE_DRAW_SIZE};
 
-use super::skills::FireballSpawnData;
+use super::skills::ProjectileSpawnData;
 use super::skills::SkillUsedEvent;
 
 pub const PLAYER_VELOCITY: f32 = 3.0;
@@ -91,10 +93,7 @@ fn update_facing(
         (Without<WeaponSprite>, Without<Weapon>, Changed<ActorFacing>),
     >,
     weapon_q: Query<&Children, With<Weapon>>,
-    mut weapon_sprite_q: Query<
-        (&mut Sprite, &mut Transform),
-        (With<WeaponSprite>, Without<Weapon>),
-    >,
+    mut weapon_sprite_q: Query<&mut Transform, (With<WeaponSprite>, Without<Weapon>)>,
 ) {
     for (actor_facing, mut sprite, children) in actor_q.iter_mut() {
         sprite.flip_x = actor_facing.0;
@@ -103,12 +102,9 @@ fn update_facing(
                 continue;
             };
             for &weapon_child in weapon_children {
-                let Ok((mut weapon_sprite, mut transform)) =
-                    weapon_sprite_q.get_mut(weapon_child) else 
-                {
+                let Ok(mut transform) = weapon_sprite_q.get_mut(weapon_child) else {
                     continue;
                 };
-                //weapon_sprite.flip_x = actor_facing.0;
                 if actor_facing.0 {
                     transform.translation.x = -SPRITE_DRAW_SIZE * 0.5;
                 } else {
@@ -200,7 +196,9 @@ fn mouse_input(
         let angle = spawn_vector.y.atan2(spawn_vector.x);
         let spawn_position = player_position + spawn_vector * SPRITE_DRAW_SIZE;
         commands.entity(entity).insert(AttackCD::new(1.0));
-        ev.send(SkillUsedEvent::Fireball(FireballSpawnData::new(
+        ev.send(SkillUsedEvent::Fireball(ProjectileSpawnData::new(
+            PLAYER_PROJECTILE_MEMBERSHIP,
+            PLAYER_PROJECTILE_FILTERS,
             spawn_position,
             spawn_vector * PROJECTILE_SPEED,
             angle,

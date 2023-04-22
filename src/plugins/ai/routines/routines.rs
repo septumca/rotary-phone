@@ -1,9 +1,7 @@
-use crate::plugins::character::actor::TargetPosition;
-use crate::plugins::character::dash::Dashing;
-use crate::{GameState, PlayerControlled};
+use crate::GameState;
+use crate::plugins::ai::routines::update_rush_routine;
+use crate::plugins::ai::routines::update_follow_routine;
 use bevy::prelude::*;
-
-use super::events::{EventDistanceReached, EventDistanceExited};
 
 pub struct RoutinesPlugin;
 

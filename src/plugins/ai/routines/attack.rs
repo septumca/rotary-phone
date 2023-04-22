@@ -4,8 +4,10 @@ use crate::plugins::ai::events::EventAttackFinished;
 use crate::plugins::ai::events::EventDistanceExited;
 use crate::plugins::character::actor::ActorFacing;
 use crate::plugins::character::actor::Weapon;
-use crate::plugins::character::skills::FireballSpawnData;
+use crate::plugins::character::skills::ProjectileSpawnData;
 use crate::plugins::character::skills::SkillUsedEvent;
+use crate::ENEMY_PROJECTILE_FILTERS;
+use crate::ENEMY_PROJECTILE_MEMBERSHIP;
 use crate::PROJECTILE_SPEED;
 use crate::{PlayerControlled, SPRITE_DRAW_SIZE};
 use bevy::prelude::*;
@@ -16,8 +18,14 @@ enum AttackState {
     Finish,
 }
 
+pub enum AttackType {
+    Fireball,
+    Slash,
+}
+
 #[derive(Component)]
 pub struct AttackRoutine {
+    attack_type: AttackType,
     state: AttackState,
     timer_start: Timer,
     timer_finish: Timer,
@@ -25,11 +33,17 @@ pub struct AttackRoutine {
 }
 
 impl AttackRoutine {
-    pub fn new(distance: f32) -> Self {
+    pub fn new(
+        attack_type: AttackType,
+        start_seconds: f32,
+        finish_seconds: f32,
+        distance: f32,
+    ) -> Self {
         Self {
+            attack_type,
             state: AttackState::Start,
-            timer_start: Timer::from_seconds(0.6, TimerMode::Once),
-            timer_finish: Timer::from_seconds(0.2, TimerMode::Once),
+            timer_start: Timer::from_seconds(start_seconds, TimerMode::Once),
+            timer_finish: Timer::from_seconds(finish_seconds, TimerMode::Once),
             distance,
         }
     }
@@ -43,7 +57,13 @@ impl AttackRoutine {
 
 pub fn update_attack_routine(
     time: Res<Time>,
-    mut ai_q: Query<(Entity, &ActorFacing, &Children, &Transform, &mut AttackRoutine)>,
+    mut ai_q: Query<(
+        Entity,
+        &ActorFacing,
+        &Children,
+        &Transform,
+        &mut AttackRoutine,
+    )>,
     player_q: Query<&Transform, With<PlayerControlled>>,
     mut weapon_q: Query<
         &mut Transform,
@@ -68,7 +88,8 @@ pub fn update_attack_routine(
                 attack_routine.timer_start.tick(dt);
                 for &child in children.iter() {
                     if let Ok(mut weapon_transform) = weapon_q.get_mut(child) {
-                        let rotation = attack_routine.timer_start.percent() * -FRAC_PI_2 * rotation_ratio;
+                        let rotation =
+                            attack_routine.timer_start.percent() * -FRAC_PI_2 * rotation_ratio;
                         weapon_transform.rotation = Quat::from_rotation_z(rotation);
                     }
                 }
@@ -84,18 +105,32 @@ pub fn update_attack_routine(
                     (player_transform.translation.truncate() - source_position).normalize();
                 let angle = velocity.y.atan2(velocity.x);
                 let position = source_position + velocity * SPRITE_DRAW_SIZE;
-                ev_skill.send(SkillUsedEvent::Fireball(FireballSpawnData::new(
+                let mut projectile_data = ProjectileSpawnData::new(
+                    ENEMY_PROJECTILE_MEMBERSHIP,
+                    ENEMY_PROJECTILE_FILTERS,
                     position,
-                    velocity * PROJECTILE_SPEED * 0.6,
+                    velocity,
                     angle,
-                )));
+                );
+                match attack_routine.attack_type {
+                    AttackType::Fireball => {
+                        projectile_data.multiply_velocity(PROJECTILE_SPEED * 0.6);
+                        ev_skill.send(SkillUsedEvent::Fireball(projectile_data));
+                    }
+                    AttackType::Slash => {
+                        projectile_data.multiply_velocity(PROJECTILE_SPEED);
+                        ev_skill.send(SkillUsedEvent::Slash(projectile_data));
+                    }
+                };
                 Some(AttackState::Finish)
             }
             AttackState::Finish => {
                 attack_routine.timer_finish.tick(dt);
                 for &child in children.iter() {
                     if let Ok(mut weapon_transform) = weapon_q.get_mut(child) {
-                        let rotation = attack_routine.timer_finish.percent_left() * -FRAC_PI_2 * rotation_ratio;
+                        let rotation = attack_routine.timer_finish.percent_left()
+                            * -FRAC_PI_2
+                            * rotation_ratio;
                         weapon_transform.rotation = Quat::from_rotation_z(rotation);
                     }
                 }
@@ -105,7 +140,10 @@ pub fn update_attack_routine(
                         .truncate()
                         .distance_squared(transform.translation.truncate());
                     if distance > attack_routine.distance.powi(2) {
-                        ev_distance_exited.send(EventDistanceExited { parent: entity });
+                        ev_distance_exited.send(EventDistanceExited {
+                            parent: entity,
+                            distance: attack_routine.distance,
+                        });
                     } else {
                         ev_finished.send(EventAttackFinished { parent: entity });
                     }

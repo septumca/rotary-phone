@@ -4,6 +4,8 @@ use crate::plugins::ai::routines::follow::update_follow_routine;
 use crate::GameState;
 use bevy::prelude::*;
 
+use super::AiExecutionSet;
+
 pub mod attack;
 pub mod follow;
 pub mod rush;
@@ -17,7 +19,9 @@ impl Plugin for RoutinesPlugin {
                 update_follow_routine, 
                 update_rush_routine,
                 update_attack_routine,
-            ).in_set(OnUpdate(GameState::Playing)),
+            )
+            .in_set(OnUpdate(GameState::Playing))
+            .in_set(AiExecutionSet::Routines)
         );
     }
 }

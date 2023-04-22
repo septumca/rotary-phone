@@ -4,10 +4,12 @@ use bevy::prelude::*;
 pub struct AiEventsPlugin;
 
 pub struct EventDistanceReached {
+    pub distance: f32,
     pub parent: Entity,
 }
 
 pub struct EventDistanceExited {
+    pub distance: f32,
     pub parent: Entity,
 }
 

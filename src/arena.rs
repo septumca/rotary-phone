@@ -1,10 +1,15 @@
-use crate::CHARACTER_Z_INDEX;
 use crate::GameState;
+use crate::Obstacle;
+use crate::CHARACTER_Z_INDEX;
+use crate::OBSTACLE_FILTERS;
+use crate::OBSTACLE_MEMBERSHIP;
 use crate::SPRITE_SIZE;
 use bevy::math::vec2;
-use crate::Obstacle;
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::{Collider, ActiveCollisionTypes, RigidBody};
+use bevy_rapier2d::prelude::ActiveEvents;
+use bevy_rapier2d::prelude::CollisionGroups;
+use bevy_rapier2d::prelude::Group;
+use bevy_rapier2d::prelude::{ActiveCollisionTypes, Collider, RigidBody};
 
 use crate::{GameResources, SPRITE_DRAW_SIZE};
 
@@ -39,7 +44,11 @@ fn create_arena(
             },
             RigidBody::Fixed,
             Collider::cuboid(window.width() / 2.0, SPRITE_DRAW_SIZE / 2.0),
-            ActiveCollisionTypes::all(),
+            ActiveEvents::COLLISION_EVENTS,
+            CollisionGroups::new(
+                Group::from_bits_truncate(OBSTACLE_MEMBERSHIP),
+                Group::from_bits_truncate(OBSTACLE_FILTERS),
+            ),
             Obstacle,
         ));
         for i in 0..tiles_width as usize {
@@ -73,7 +82,11 @@ fn create_arena(
             },
             RigidBody::Fixed,
             Collider::cuboid(SPRITE_DRAW_SIZE / 2.0, window.height() / 2.0),
-            ActiveCollisionTypes::all(),
+            //ActiveCollisionTypes::all(),
+            CollisionGroups::new(
+                Group::from_bits_truncate(OBSTACLE_MEMBERSHIP),
+                Group::from_bits_truncate(OBSTACLE_FILTERS),
+            ),
             Obstacle,
         ));
         for i in 1..(tiles_height - 1.0) as usize {
